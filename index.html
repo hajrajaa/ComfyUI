@@ -14,15 +14,43 @@
     <div id="vue-app"></div>
 
 
+
+
+  
+
+
    
-    <div id="painter-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:transparent; justify-content:center; align-items:center; z-index:9999;">
+    <div id="painter-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:gray; justify-content:center; align-items:center; z-index:9999;">
       <canvas id="painter-canvas" style="cursor:pointer;"></canvas>
-      <div style="position:absolute; top:10px; right:10px;">
-          <button id="draw-mode" style="padding:10px 15px;">Draw Mode</button>
-          <button id="erase-mode" style="padding:10px 15px;">Erase Mode</button>
-          <button id="clear-painting" style="padding:10px 15px;">Clear</button>
-          <button id="save-painting" style="padding:10px 15px;">Save</button>
-          <button id="close-painter" style="padding:10px 15px;">Close</button>
+
+
+        <!-- Left Side Toolbar (Draw & Erase) -->
+        <div style="position:absolute; top:50%; left:10px; transform:translateY(-50%); display:flex; flex-direction:column; gap:15px;">
+          <button id="draw-mode" style="padding:10px; background:transparent; border:none;">
+              <img src="icons/paint.png" alt="Draw" width="40" height="40">
+          </button>
+          <button id="erase-mode" style="padding:10px; background:transparent; border:none;">
+              <img src="icons/eraser.png" alt="Erase" width="40" height="40">
+          </button>
+      </div>
+
+
+
+          
+       <!-- Right Side Toolbar (Clear, Save, Close) -->
+      <div style="position:absolute; top:10px; right:10px; display:flex; gap:20px;">
+          <button id="clear-painting" style="padding:10px 20px; background:transparent; border:none; font-size:20px; font-weight:bold; display:flex; align-items:center; gap:10px;">
+              <img src="icons/clear.png" alt="Clear" width="32" height="32">
+              CLEAR
+          </button>
+          <button id="save-painting" style="padding:10px 20px; background:transparent; border:none; font-size:20px; font-weight:bold; display:flex; align-items:center; gap:10px;">
+              <img src="icons/save.png" alt="Save" width="32" height="32">
+              SAVE
+          </button>
+          <button id="close-painter" style="padding:10px 20px; background:transparent; border:none; font-size:20px; font-weight:bold; display:flex; align-items:center; gap:10px;">
+              <img src="icons/close.png" alt="Close" width="32" height="32">
+              CLOSE
+          </button>
       </div>
   </div>
   
