@@ -36,6 +36,25 @@ function openPainterEditor(node) {
     const canvas = document.getElementById("painter-canvas");
     const ctx = canvas.getContext("2d");
 
+
+    const paintCanvas= document.createElement("canvas");
+    if (!paintCanvas) 
+        {
+        paintCanvas = document.createElement("canvas");
+        paintCanvas.id = "paintCanvas";
+        paintCanvas.style.position = "absolute";
+        paintCanvas.style.top = canvas.offsetTop + "px";
+        paintCanvas.style.left = canvas.offsetLeft + "px";
+        paintCanvas.style.zIndex = "10"; // Ensure it stays on top
+        modal.appendChild(paintCanvas);
+    }
+
+    const paintCtx = paintCanvas.getContext("2d");
+    paintCanvas.width=canvas.width;
+    paintCanvas.height=canvas.height;
+    //modal.appendChild(paintCanvas);
+
+
     modal.style.display = "flex";
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -43,6 +62,7 @@ function openPainterEditor(node) {
     let drawing = false;
     let erasing = false;
     let activeMode = null;
+    //let originalImage = null;
 
     const img = new Image();
     const nodeImageUrl = `/view?filename=${encodeURIComponent(node.widgets[0].value)}&type=input`;
@@ -63,55 +83,106 @@ function openPainterEditor(node) {
         imgX = (canvas.width - imgWidth) / 2;
         imgY = (canvas.height - imgHeight) / 2;
 
+        // draw orignal image on main canvas 
         ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+        //originalImage = ctx.getImageData(0,0,canvas.width,canvas.height);
+
+        // make paint layer transparent
+        //paintCtx.fillStyle = "rgba(0,0,0,0)";
+        //paintCtx.fillRect(0,0,paintCanvas.width,paintCanvas.height);
+        paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
     };
 
-    ctx.strokeStyle = "#FFF";
-    ctx.lineWidth = 5;
+    paintCtx.strokeStyle = "#FFF";
+    paintCtx.lineWidth = 5;
+    paintCtx.lineCap = "round";
 
-    // Create a cursor preview (ONLY inside the painting area)
-    const toolCursor = document.createElement("img");
+  
+    let toolCursor = document.createElement("img");
+    toolCursor.classList.add("tool-cursor");
     toolCursor.style.position = "absolute";
     toolCursor.style.width = "40px";
     toolCursor.style.height = "40px";
     toolCursor.style.pointerEvents = "none";
     toolCursor.style.display = "none";
-    toolCursor.style.zIndex = "1001"; // Ensure it appears above canvas
-    modal.appendChild(toolCursor); // Attach it inside the modal
+    toolCursor.style.zIndex = "1001";
+    modal.appendChild(toolCursor);
+    //document.body.appendChild(toolCursor);
+
+    
 
     // Handle cursor movement (only inside image)
     canvas.addEventListener("mousemove", (e) => {
-        if (activeMode) {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+        // if (activeMode) {
+        //     const rect = canvas.getBoundingClientRect();
+        //     const x = e.clientX - rect.left;
+        //     const y = e.clientY - rect.top;
 
-            if (x >= imgX && x <= imgX + imgWidth && y >= imgY && y <= imgY + imgHeight) {
-                toolCursor.style.display = "block";
-                toolCursor.style.left = `${e.clientX - 15}px`;
-                toolCursor.style.top = `${e.clientY - 15}px`;
-            } else {
-                toolCursor.style.display = "none";
-            }
-        }
+        //     if (x >= imgX && x <= imgX + imgWidth && y >= imgY && y <= imgY + imgHeight) {
+        //         toolCursor.style.display = "block";
+        //         toolCursor.style.left = `${e.clientX - 15}px`;
+        //         toolCursor.style.top = `${e.clientY - 15}px`;
+        //     } else {
+        //         toolCursor.style.display = "none";
+        //     }
+        //     if (drawing){
+        //         paintCtx.lineTo(x,y);
+        //         paintCtx.stroke();
+        //         updateCanvas();
 
-        if (drawing && activeMode) {
-            if (e.offsetX >= imgX && e.offsetX <= imgX + imgWidth &&
-                e.offsetY >= imgY && e.offsetY <= imgY + imgHeight) {
-                ctx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
-                ctx.lineTo(e.offsetX, e.offsetY);
-                ctx.stroke();
+        //     }
+        //     else{
+        //         toolCursor.style.display="none";
+        //     }
+        // }
+
+        // if (drawing && activeMode) {
+        //     if (e.offsetX >= imgX && e.offsetX <= imgX + imgWidth &&
+        //         e.offsetY >= imgY && e.offsetY <= imgY + imgHeight) {
+        //         paintCtx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
+        //         paintCtx.lineTo(e.offsetX, e.offsetY);
+        //         paintCtx.stroke();
+
+        //         // Draw the paint layer onto the main canvas
+        //         ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+        //         ctx.drawImage(paintCanvas, 0,0);
+
+        //     }
+        // }
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (x >= imgX && x <= imgX + imgWidth && y >= imgY && y <= imgY + imgHeight) {
+            toolCursor.style.display = "block";
+            toolCursor.style.left = `${e.clientX - 15}px`;
+            toolCursor.style.top = `${e.clientY - 15}px`;
+
+            if (drawing) {
+                paintCtx.lineTo(x, y);
+                paintCtx.stroke();
+                updateCanvas();
             }
+        } else {
+            toolCursor.style.display = "none";
         }
+      
     });
 
+    function updateCanvas(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(img,imgX,imgY,imgWidth,imgHeight);
+        ctx.drawImage(paintCanvas,0,0);
+
+    
+    }
     // Start drawing inside the image
     canvas.addEventListener("mousedown", (e) => {
         if (activeMode && e.offsetX >= imgX && e.offsetX <= imgX + imgWidth &&
             e.offsetY >= imgY && e.offsetY <= imgY + imgHeight) {
             drawing = true;
-            ctx.beginPath();
-            ctx.moveTo(e.offsetX, e.offsetY);
+            paintCtx.beginPath();
+            paintCtx.moveTo(e.offsetX, e.offsetY);
         }
     });
 
@@ -124,9 +195,9 @@ function openPainterEditor(node) {
     document.getElementById("draw-mode").addEventListener("click", () => {
         activeMode = "draw";
         erasing = false;
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = "#FFF"; // White brush
-        ctx.lineWidth = 5;
+        paintCtx.globalCompositeOperation = "source-over";
+        paintCtx.strokeStyle = "#FFF"; // White brush
+        paintCtx.lineWidth = 5;
         toolCursor.src = "icons/paint.png"; // Brush icon
     });
 
@@ -134,34 +205,46 @@ function openPainterEditor(node) {
     document.getElementById("erase-mode").addEventListener("click", () => {
         activeMode = "erase";
         erasing = true;
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = "black"; // Use black to erase white strokes only
-        ctx.lineWidth = 20;
+        paintCtx.globalCompositeOperation = "destination-out";
+        //ctx.strokeStyle = "rgba(122, 28, 28, 0)"; // Use black to erase white strokes only
+        paintCtx.lineWidth = 20;
         toolCursor.src = "icons/eraser.png"; // Eraser icon
     });
 
     // Clear drawing 
     document.getElementById("clear-painting").addEventListener("click", () => {
-        ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+        paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+        updateCanvas();
+        //ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+        
     });
 
     // Close Painter
     document.getElementById("close-painter").addEventListener("click", () => {
         modal.style.display = "none";
         toolCursor.style.display = "none";
+        drawing = false;
+        erasing = false;
+        activeMode = null;
+
     });
 
     //Save the edited image
     document.getElementById("save-painting").addEventListener("click", async () => {
-        const croppedCanvas = document.createElement("canvas");
-        croppedCanvas.width = imgWidth;
-        croppedCanvas.height = imgHeight;
-        const croppedCtx = croppedCanvas.getContext("2d");
+        const finalCanvas = document.createElement("canvas");
+        finalCanvas.width = imgWidth;
+        finalCanvas.height = imgHeight;
+        const finalCtx = finalCanvas.getContext("2d");
 
-        // Draw the modified image onto the cropped canvas
-        croppedCtx.drawImage(canvas, imgX, imgY, imgWidth, imgHeight, 0, 0, imgWidth, imgHeight);
+        // Draw orignal image 
+        finalCtx.drawImage(img,0,0,imgWidth,imgHeight);
 
-        croppedCanvas.toBlob(async (blob) => {
+        // Draw the paint layer onto the final canvas
+        finalCtx.drawImage(paintCanvas, 0, 0, imgWidth, imgHeight);
+
+    
+
+        finalCanvas.toBlob(async (blob) => {
             const formData = new FormData();
             formData.append("image", blob, "edited_painting.png");
 
@@ -173,46 +256,26 @@ function openPainterEditor(node) {
 
                 if (response.ok) {
                     const result = await response.json();
-                    if (!result.filename || result.filename === "undefined") {
-                        throw new Error("No filename returned from the server.");
-                    }
-
-                    const newImagePath = result.filename;
-                    node.widgets[0].value = newImagePath;
-                    node.setProperty("image", newImagePath);
-
-                    const timestamp = new Date().getTime();
-                    const newImageUrl = `/view?filename=${encodeURIComponent(newImagePath)}&type=input&_=${timestamp}`;
-
-                    setTimeout(() => {
-                        node.widgets[0].value = newImagePath;
-                        node.setProperty("image", newImagePath);
-                        node.graph._version++;
-                        node.graph.dirty_canvas = true;
-                        node.graph.dirty_bgcanvas = true;
-                        app.graph.change();
-                    }, 1);
-
-                    const painterNode = document.querySelector(`.comfy-node[data-nodeid='${node.id}']`);
-                    if (painterNode) {
-                        const imgElement = painterNode.querySelector("img");
-                        if (imgElement) {
-                            imgElement.src = newImageUrl;
-                        }
-                    }
-
-                    alert(`Painting saved as ${newImagePath} and updated!`);
+                    node.widgets[0].value = result.filename;
+                    node.setProperty("image", result.filename);
+                    alert(`Painting saved as ${result.filename} and updated!`);
                 } else {
-                    const errorText = await response.text();
-                    alert(`Failed to save painting: ${errorText}`);
+                    alert("Failed to save painting.");
                 }
             } catch (error) {
                 alert(`Error saving painting: ${error.message}`);
             }
         }, "image/png");
 
+                
+
         modal.style.display = "none";
         toolCursor.style.display = "none";
+        drawing = false;
+        erasing = false;
+        activeMode = null;
+
+
     });
 
 }
