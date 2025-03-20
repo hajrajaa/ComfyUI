@@ -43,8 +43,8 @@ function openPainterEditor(node) {
         paintCanvas = document.createElement("canvas");
         paintCanvas.id = "paintCanvas";
         paintCanvas.style.position = "absolute";
-        paintCanvas.style.top = canvas.offsetTop + "px";
-        paintCanvas.style.left = canvas.offsetLeft + "px";
+        //paintCanvas.style.top = canvas.offsetTop + "px";
+       // paintCanvas.style.left = canvas.offsetLeft + "px";
         paintCanvas.style.zIndex = "10"; // Ensure it stays on top
         modal.appendChild(paintCanvas);
     }
@@ -64,13 +64,24 @@ function openPainterEditor(node) {
     let activeMode = null;
     //let originalImage = null;
 
+
+    let zoomScale=1.0;
+    let imgX, imgY, imgWidth, imgHeight;
+    let centerX, centerY;
+
+
+
     const img = new Image();
     const nodeImageUrl = `/view?filename=${encodeURIComponent(node.widgets[0].value)}&type=input`;
     img.src = nodeImageUrl;
 
-    let imgX, imgY, imgWidth, imgHeight;
-
+ 
     img.onload = () => {
+        resetImagePostions();
+        updateCanvas();
+    };
+
+    function resetImagePostions(){
         const aspectRatio = img.width / img.height;
         if (canvas.width / aspectRatio <= canvas.height) {
             imgWidth = canvas.width * 0.8;
@@ -80,18 +91,54 @@ function openPainterEditor(node) {
             imgWidth = imgHeight * aspectRatio;
         }
 
-        imgX = (canvas.width - imgWidth) / 2;
-        imgY = (canvas.height - imgHeight) / 2;
+        // imgX = (canvas.width - imgWidth) / 2;
+        // imgY = (canvas.height - imgHeight) / 2;
+        centerX=canvas.width/2;
+        centerY=canvas.height/2;
+        zoomScale=1.0;
+        imgX=centerX-imgWidth/2;
+        imgY=centerY-imgHeight/2;
+        //zoomXoffset=0;
+        //zoomYoffset=0;
+        updateCanvas();
+    }
+    function updateCanvas(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.save();
+        ctx.translate(centerX,centerY);
+        ctx.scale(zoomScale,zoomScale);
+        ctx.translate(-centerX,-centerY);
+        ctx.drawImage(img,imgX,imgY,imgWidth,imgHeight);
+        ctx.drawImage(paintCanvas,0,0);
+        ctx.restore();
+    }
 
-        // draw orignal image on main canvas 
-        ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
-        //originalImage = ctx.getImageData(0,0,canvas.width,canvas.height);
+    // Zoom in and out handler (mouse wheel)
+    canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const zoomFactor=1.1;
+        const scale = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
 
-        // make paint layer transparent
-        //paintCtx.fillStyle = "rgba(0,0,0,0)";
-        //paintCtx.fillRect(0,0,paintCanvas.width,paintCanvas.height);
-        paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
-    };
+        zoomScale *= scale;
+
+
+        updateCanvas();
+    });
+
+ 
+
+    // zoom handler (keyboard shortcuts)
+    window.addEventListener("keydown", (e) => {
+        if (e.key === "+" || e.key === "=") {   
+            zoomScale *= 1.1;
+        }
+        if (e.key === "-") {
+            zoomScale /= 1.1;
+        }
+        updateCanvas();
+    });
+
+
 
     paintCtx.strokeStyle = "#FFF";
     paintCtx.lineWidth = 5;
@@ -113,45 +160,11 @@ function openPainterEditor(node) {
 
     // Handle cursor movement (only inside image)
     canvas.addEventListener("mousemove", (e) => {
-        // if (activeMode) {
-        //     const rect = canvas.getBoundingClientRect();
-        //     const x = e.clientX - rect.left;
-        //     const y = e.clientY - rect.top;
-
-        //     if (x >= imgX && x <= imgX + imgWidth && y >= imgY && y <= imgY + imgHeight) {
-        //         toolCursor.style.display = "block";
-        //         toolCursor.style.left = `${e.clientX - 15}px`;
-        //         toolCursor.style.top = `${e.clientY - 15}px`;
-        //     } else {
-        //         toolCursor.style.display = "none";
-        //     }
-        //     if (drawing){
-        //         paintCtx.lineTo(x,y);
-        //         paintCtx.stroke();
-        //         updateCanvas();
-
-        //     }
-        //     else{
-        //         toolCursor.style.display="none";
-        //     }
-        // }
-
-        // if (drawing && activeMode) {
-        //     if (e.offsetX >= imgX && e.offsetX <= imgX + imgWidth &&
-        //         e.offsetY >= imgY && e.offsetY <= imgY + imgHeight) {
-        //         paintCtx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
-        //         paintCtx.lineTo(e.offsetX, e.offsetY);
-        //         paintCtx.stroke();
-
-        //         // Draw the paint layer onto the main canvas
-        //         ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
-        //         ctx.drawImage(paintCanvas, 0,0);
-
-        //     }
-        // }
+       
+      
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const x= (e.clientX-rect.left )/zoomScale;
+        const y= (e.clientY-rect.top)/zoomScale;
 
         if (x >= imgX && x <= imgX + imgWidth && y >= imgY && y <= imgY + imgHeight) {
             toolCursor.style.display = "block";
@@ -159,30 +172,26 @@ function openPainterEditor(node) {
             toolCursor.style.top = `${e.clientY - 15}px`;
 
             if (drawing) {
-                paintCtx.lineTo(x, y);
-                paintCtx.stroke();
-                updateCanvas();
-            }
-        } else {
-            toolCursor.style.display = "none";
-        }
-      
+                        paintCtx.lineTo(x, y);
+                        paintCtx.stroke();
+                        updateCanvas();
+                    }
+                } else {
+                    toolCursor.style.display = "none";
+                }  
     });
 
-    function updateCanvas(){
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img,imgX,imgY,imgWidth,imgHeight);
-        ctx.drawImage(paintCanvas,0,0);
-
-    
-    }
     // Start drawing inside the image
     canvas.addEventListener("mousedown", (e) => {
-        if (activeMode && e.offsetX >= imgX && e.offsetX <= imgX + imgWidth &&
-            e.offsetY >= imgY && e.offsetY <= imgY + imgHeight) {
+        const rect = canvas.getBoundingClientRect();
+        const x= (e.clientX-rect.left)/zoomScale;
+        const y= (e.clientY-rect.top )/zoomScale;
+
+        if (activeMode && x >= imgX && x <= imgX + imgWidth &&
+            y >= imgY && y <= imgY + imgHeight) {
             drawing = true;
             paintCtx.beginPath();
-            paintCtx.moveTo(e.offsetX, e.offsetY);
+            paintCtx.moveTo(x, y);
         }
     });
 
@@ -197,7 +206,7 @@ function openPainterEditor(node) {
         erasing = false;
         paintCtx.globalCompositeOperation = "source-over";
         paintCtx.strokeStyle = "#FFF"; // White brush
-        paintCtx.lineWidth = 5;
+        paintCtx.lineWidth = 5 * zoomScale;
         toolCursor.src = "icons/paint.png"; // Brush icon
     });
 
@@ -207,7 +216,7 @@ function openPainterEditor(node) {
         erasing = true;
         paintCtx.globalCompositeOperation = "destination-out";
         //ctx.strokeStyle = "rgba(122, 28, 28, 0)"; // Use black to erase white strokes only
-        paintCtx.lineWidth = 20;
+        paintCtx.lineWidth = 20 * zoomScale;
         toolCursor.src = "icons/eraser.png"; // Eraser icon
     });
 
