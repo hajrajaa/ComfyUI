@@ -85,10 +85,3 @@ class PaintNode:
 
         return True
 
-NODE_CLASS_MAPPINGS = {
-"PaintNode": PaintNode
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-"PaintNode": "Painter Node"
-}

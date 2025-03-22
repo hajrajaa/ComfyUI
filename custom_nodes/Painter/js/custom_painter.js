@@ -1,0 +1,365 @@
+import { app } from "../../scripts/app.js";
+
+
+// Save original method
+const originalGetNodeMenuOptions = LiteGraph.LGraphCanvas.prototype.getNodeMenuOptions;
+
+LiteGraph.LGraphCanvas.prototype.getNodeMenuOptions = function(node) {
+    // Get original options
+    let options = originalGetNodeMenuOptions ? originalGetNodeMenuOptions.call(this, node) : [];
+
+    // Ensure options array exists
+    options = options || [];
+
+    // Add your custom option specifically for your node type
+    if (node.type === "PaintNode") {
+        // Add divider line if existing options aren't empty
+        if (options.length > 0 && options[options.length - 1] !== null) {
+            options.push(null);
+        }
+
+        options.push({
+            content: "Open Painter Editor",
+            callback: () => openPainterEditor(node)
+        });
+    }
+
+    return options;
+};
+
+function openPainterEditor(node) {
+    const modal = document.getElementById("painter-modal");
+    const canvas = document.getElementById("painter-canvas");
+    const ctx = canvas.getContext("2d");
+
+
+    const paintCanvas= document.createElement("canvas");
+    if (!paintCanvas) 
+        {
+        paintCanvas = document.createElement("canvas");
+        paintCanvas.id = "paintCanvas";
+        paintCanvas.style.position = "absolute";
+        //paintCanvas.style.top = canvas.offsetTop + "px";
+       // paintCanvas.style.left = canvas.offsetLeft + "px";
+        paintCanvas.style.zIndex = "10"; // Ensure it stays on top
+        modal.appendChild(paintCanvas);
+    }
+
+    const paintCtx = paintCanvas.getContext("2d");
+    paintCanvas.width=canvas.width;
+    paintCanvas.height=canvas.height;
+    //modal.appendChild(paintCanvas);
+
+
+    modal.style.display = "flex";
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let drawing = false;
+    let erasing = false;
+    let activeMode = null;
+    //let originalImage = null;
+
+
+    let zoomScale=1.0;
+    let imgX, imgY, imgWidth, imgHeight;
+    let centerX, centerY;
+
+
+
+    const img = new Image();
+    const nodeImageUrl = `/view?filename=${encodeURIComponent(node.widgets[0].value)}&type=input`;
+    img.src = nodeImageUrl;
+
+    
+
+ 
+    img.onload = () => {
+        resetImagePostions();
+        updateCanvas();
+    };
+
+    function resetImagePostions(){
+        const aspectRatio = img.width / img.height;
+        if (canvas.width / aspectRatio <= canvas.height) {
+            imgWidth = canvas.width * 0.8;
+            imgHeight = imgWidth / aspectRatio;
+        } else {
+            imgHeight = canvas.height * 0.8;
+            imgWidth = imgHeight * aspectRatio;
+        }
+
+   
+        centerX=canvas.width/2;
+        centerY=canvas.height/2;
+        zoomScale=1.0;
+        imgX=centerX-imgWidth/2;
+        imgY=centerY-imgHeight/2;
+    
+        updateCanvas();
+    }
+    function updateCanvas(){
+        
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.save();
+        ctx.translate(centerX,centerY);
+        ctx.scale(zoomScale,zoomScale);
+        ctx.translate(-centerX,-centerY);
+        ctx.drawImage(img,imgX,imgY,imgWidth,imgHeight);
+        ctx.drawImage(paintCanvas,0,0);
+        ctx.restore();
+
+    }
+
+    // Zoom in and out handler (mouse wheel)
+    canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const zoomFactor=1.1;
+        const scale = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
+
+        zoomScale *= scale;
+
+
+        updateCanvas();
+    });
+
+    // zoom handler (keyboard shortcuts)
+    window.addEventListener("keydown", (e) => {
+        if (e.key === "+" || e.key === "=") {   
+            zoomScale *= 1.1;
+        }
+        if (e.key === "-") {
+            zoomScale /= 1.1;
+        }
+        updateCanvas();
+    });
+
+
+
+    paintCtx.strokeStyle = "#FFF";
+    paintCtx.lineWidth = 5;
+    paintCtx.lineCap = "round";
+
+    // const toolCursor = document.createElement("img");
+
+    // // Create a cursor preview 
+    
+   
+    // let toolCursor = document.createElement("img");
+    // toolCursor.classList.add("tool-cursor");
+    // toolCursor.style.position = "absolute";
+    // toolCursor.style.width = "40px";
+    // toolCursor.style.height = "40px";
+    // toolCursor.style.pointerEvents = "none";
+    // toolCursor.style.display = "none";
+    // toolCursor.style.zIndex = "1001"; // Ensure it appears above canvas
+    // modal.appendChild(toolCursor); // Attach it inside the modal
+
+    let toolCursor = document.createElement("img");
+    toolCursor.classList.add("tool-cursor");
+    toolCursor.style.position = "absolute";
+    toolCursor.style.width = "40px";
+    toolCursor.style.height = "40px";
+    toolCursor.style.pointerEvents = "none";
+    toolCursor.style.display = "none";
+    toolCursor.style.zIndex = "1001"; // Ensure it appears above canvas
+    modal.appendChild(toolCursor); // Attach it inside the modal
+     
+  
+    // if (!toolCursor) {
+    //     toolCursor = document.createElement("img");
+    //     toolCursor.id = "toolCursor";
+    //     toolCursor.classList.add("tool-cursor");
+    //     toolCursor.style.position = "absolute";
+    //     toolCursor.style.width = "40px";
+    //     toolCursor.style.height = "40px";
+    //     toolCursor.style.pointerEvents = "none";
+    //     toolCursor.style.display = "none";
+    //     toolCursor.style.zIndex = "1001";
+    //     modal.appendChild(toolCursor);
+    // }
+    // else{
+    //     toolCursor.style.display = "block";
+    // }
+
+    function getMousePostion(e){
+        const rect = canvas.getBoundingClientRect();
+        return{
+            x: (e.clientX-rect.left-centerX)/zoomScale+centerX,
+            y: (e.clientY-rect.top-centerY)/zoomScale+centerY
+            
+        };
+    }
+
+    
+
+    // Handle cursor movement (only inside image)
+    canvas.addEventListener("mousemove", (e) => {
+
+        const { x , y}=getMousePostion(e);
+
+        if (drawing && activeMode)
+        {
+            paintCtx.lineTo(x, y);
+            paintCtx.stroke();
+            updateCanvas();
+        }
+
+    });
+
+    // function startDrawing(e){
+    //     const { x , y}=getMousePostion(e);
+
+    //     if (activeMode && x>=imgX && x<=imgX + imgWidth && y>=imgY && y<=imgY + imgHeight){
+    //         drawing=true;
+    //         paintCtx.beginPath();
+    //         paintCtx.moveTo(x,y);
+    //         // check if nedded the next two lines !!!!!!!!!!!!
+    //         paintCtx.lineTo(x+0.1,y+0.1);
+    //         paintCtx.stroke();
+    //     }
+    // }
+
+    // function stopDrawing(){
+    //     drawing = false
+    // }
+
+    // if(!canvas.dataset.listennersAdded){
+    //     canvas.addEventListener("mousedown",startDrawing);
+    //     canvas.addEventListener("mouseup",stopDrawing);
+    //     canvas.dataset.listennersAdded=true
+    // }
+    
+
+  
+
+    // Start drawing inside the image
+    canvas.addEventListener("mousedown", (e) => {
+        const { x , y}=getMousePostion(e);
+
+        if (activeMode && x>=imgX && x<=imgX + imgWidth && y>=imgY && y<=imgY + imgHeight){
+            drawing=true;
+            paintCtx.beginPath();
+            paintCtx.moveTo(x,y);
+            // check if nedded the next two lines !!!!!!!!!!!!
+            paintCtx.lineTo(x+0.1,y+0.1);
+            paintCtx.stroke();
+        }
+
+    });
+
+    // Stop drawing
+    canvas.addEventListener("mouseup", () => {
+        drawing = false;
+    });
+
+    // Draw Mode
+    document.getElementById("draw-mode").addEventListener("click", () => {
+        activeMode = "draw";
+        erasing = false;
+        paintCtx.globalCompositeOperation = "source-over";
+        paintCtx.strokeStyle = "#FFF"; // White brush
+        paintCtx.lineWidth = 5 * zoomScale;
+        toolCursor.src = "icons/paint.png"; // Brush icon
+        //toolCursor.style.display = "block";
+    });
+
+    // Erase Mode (only erases white strokes, not background)
+    document.getElementById("erase-mode").addEventListener("click", () => {
+        activeMode = "erase";
+        erasing = true;
+        paintCtx.globalCompositeOperation = "destination-out";
+        //ctx.strokeStyle = "rgba(122, 28, 28, 0)"; // Use black to erase white strokes only
+        paintCtx.lineWidth = 20 * zoomScale;
+        toolCursor.src = "icons/eraser.png"; // Eraser icon
+        //toolCursor.style.display = "block";
+    });
+
+    // Clear drawing 
+    document.getElementById("clear-painting").addEventListener("click", () => {
+        paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+        updateCanvas();
+        //ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+        
+    });
+
+    // Close Painter
+    document.getElementById("close-painter").addEventListener("click", () => {
+        modal.style.display = "none";
+        toolCursor.style.display = "none";
+        drawing = false;
+        erasing = false;
+        activeMode = null;
+
+    });
+
+    //Save the edited image
+
+    const saveButton = document.getElementById("save-painting");
+    // saveButton.removeEventListener("click", savePaintingOnce);
+    // saveButton.addEventListener("click", savePaintingOnce);
+
+    saveButton.replaceWith(saveButton.cloneNode(true));
+    document.getElementById("save-painting").addEventListener("click", async function savePaintingOnce() {
+        saveButton.disabled=true;
+
+        const finalCanvas = document.createElement("canvas");
+        finalCanvas.width = img.naturalWidth;
+        finalCanvas.height = img.naturalHeight;
+        const finalCtx = finalCanvas.getContext("2d");
+
+
+        // Draw orignal image 
+        finalCtx.drawImage(img,0,0,finalCanvas.width,finalCanvas.height);
+
+        // Draw the paint layer onto the final canvas
+        finalCtx.drawImage(paintCanvas, imgX, imgY, imgWidth, imgHeight,0,0,finalCanvas.width,finalCanvas.height);
+
+        finalCanvas.toBlob(async (blob) => {
+            const formData = new FormData();
+            formData.append("image", blob, "edited_painting.png");
+
+            try {
+                const response = await fetch("/upload/image", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    node.widgets[0].value = result.filename;
+                    node.setProperty("image", result.filename);
+                    alert(`Painting saved as ${result.filename} and updated!`);
+                } else {
+                    alert("Failed to save painting.");
+                }
+            } catch (error) {
+                alert(`Error saving painting: ${error.message}`);
+            }
+        }, "image/png");
+
+                
+
+        modal.style.display = "none";
+        toolCursor.style.display = "none";
+        drawing = false;
+        erasing = false;
+        activeMode = null;
+
+
+    });
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
