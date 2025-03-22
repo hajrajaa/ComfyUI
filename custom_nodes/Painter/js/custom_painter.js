@@ -40,7 +40,7 @@ function openPainterEditor(node) {
         paintCanvas.id = "paintCanvas";
         paintCanvas.style.position = "absolute";
         //paintCanvas.style.top = canvas.offsetTop + "px";
-       // paintCanvas.style.left = canvas.offsetLeft + "px";
+        //paintCanvas.style.left = canvas.offsetLeft + "px";
         paintCanvas.style.zIndex = "10"; // Ensure it stays on top
         modal.appendChild(paintCanvas);
     }
@@ -98,6 +98,7 @@ function openPainterEditor(node) {
     
         updateCanvas();
     }
+
     function updateCanvas(){
         
         ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -118,8 +119,6 @@ function openPainterEditor(node) {
         const scale = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
 
         zoomScale *= scale;
-
-
         updateCanvas();
     });
 
@@ -138,23 +137,11 @@ function openPainterEditor(node) {
 
     paintCtx.strokeStyle = "#FFF";
     paintCtx.lineWidth = 5;
-    paintCtx.lineCap = "round";
+    //paintCtx.lineCap = "round";
 
-    // const toolCursor = document.createElement("img");
+
 
     // // Create a cursor preview 
-    
-   
-    // let toolCursor = document.createElement("img");
-    // toolCursor.classList.add("tool-cursor");
-    // toolCursor.style.position = "absolute";
-    // toolCursor.style.width = "40px";
-    // toolCursor.style.height = "40px";
-    // toolCursor.style.pointerEvents = "none";
-    // toolCursor.style.display = "none";
-    // toolCursor.style.zIndex = "1001"; // Ensure it appears above canvas
-    // modal.appendChild(toolCursor); // Attach it inside the modal
-
     let toolCursor = document.createElement("img");
     toolCursor.classList.add("tool-cursor");
     toolCursor.style.position = "absolute";
@@ -166,21 +153,7 @@ function openPainterEditor(node) {
     modal.appendChild(toolCursor); // Attach it inside the modal
      
   
-    // if (!toolCursor) {
-    //     toolCursor = document.createElement("img");
-    //     toolCursor.id = "toolCursor";
-    //     toolCursor.classList.add("tool-cursor");
-    //     toolCursor.style.position = "absolute";
-    //     toolCursor.style.width = "40px";
-    //     toolCursor.style.height = "40px";
-    //     toolCursor.style.pointerEvents = "none";
-    //     toolCursor.style.display = "none";
-    //     toolCursor.style.zIndex = "1001";
-    //     modal.appendChild(toolCursor);
-    // }
-    // else{
-    //     toolCursor.style.display = "block";
-    // }
+ 
 
     function getMousePostion(e){
         const rect = canvas.getBoundingClientRect();
@@ -197,39 +170,28 @@ function openPainterEditor(node) {
     canvas.addEventListener("mousemove", (e) => {
 
         const { x , y}=getMousePostion(e);
+        const rect = canvas.getBoundingClientRect();
 
-        if (drawing && activeMode)
+        const isInsideImage= x>=imgX && x<=imgX + imgWidth && y>=imgY && y<=imgY + imgHeight;
+
+        if (drawing && activeMode&& isInsideImage)
         {
             paintCtx.lineTo(x, y);
             paintCtx.stroke();
             updateCanvas();
         }
+        if (activeMode&& isInsideImage)
+        {
+            toolCursor.style.display = "block";
+            toolCursor.style.left = e.clientX + "px";
+            toolCursor.style.top = e.clientY + "px";
+        }
+        else{
+            toolCursor.style.display = "none";
+        }
 
     });
 
-    // function startDrawing(e){
-    //     const { x , y}=getMousePostion(e);
-
-    //     if (activeMode && x>=imgX && x<=imgX + imgWidth && y>=imgY && y<=imgY + imgHeight){
-    //         drawing=true;
-    //         paintCtx.beginPath();
-    //         paintCtx.moveTo(x,y);
-    //         // check if nedded the next two lines !!!!!!!!!!!!
-    //         paintCtx.lineTo(x+0.1,y+0.1);
-    //         paintCtx.stroke();
-    //     }
-    // }
-
-    // function stopDrawing(){
-    //     drawing = false
-    // }
-
-    // if(!canvas.dataset.listennersAdded){
-    //     canvas.addEventListener("mousedown",startDrawing);
-    //     canvas.addEventListener("mouseup",stopDrawing);
-    //     canvas.dataset.listennersAdded=true
-    // }
-    
 
   
 
@@ -296,9 +258,6 @@ function openPainterEditor(node) {
     //Save the edited image
 
     const saveButton = document.getElementById("save-painting");
-    // saveButton.removeEventListener("click", savePaintingOnce);
-    // saveButton.addEventListener("click", savePaintingOnce);
-
     saveButton.replaceWith(saveButton.cloneNode(true));
     document.getElementById("save-painting").addEventListener("click", async function savePaintingOnce() {
         saveButton.disabled=true;
