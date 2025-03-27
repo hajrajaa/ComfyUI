@@ -1,4 +1,7 @@
 import { app } from "../../scripts/app.js";
+import{api} from "../../scripts/api.js";
+import { $el, ComfyDialog } from "../../scripts/ui.js";
+
 
 
 
@@ -29,7 +32,12 @@ LiteGraph.LGraphCanvas.prototype.getNodeMenuOptions = function(node) {
 };
 
 
+
+
+
 function openOutputEditor(node) {
+
+
 
     const modal = document.getElementById("output-modal");
     const displayCanvas = document.getElementById("output-canvas");
@@ -47,10 +55,32 @@ function openOutputEditor(node) {
     modal.style.display="flex";
     displayCanvas.width=window.innerWidth;
     displayCanvas.height=window.innerHeight;
+
+
+    
+
+
+    const imageUrl = window.location.origin + "/output/edit_output/image.png";
+    const paintUrl = window.location.origin + "/output/edit_output/paint_canvas.png";
+    
     
 
     const img = new Image();
+    img.src = imageUrl;
+
     const paintCanvasImg = new Image();
+    paintCanvasImg.src = paintUrl;
+
+        
+    
+    
+
+
+    
+
+    
+
+
     const imgCanvas=document.createElement("canvas");
     const imgCtx=imgCanvas.getContext("2d");
     const paintCanvas=document.createElement("canvas");
@@ -69,28 +99,23 @@ function openOutputEditor(node) {
         imgCanvas.width=img.width;
         imgCanvas.height=img.height;
         imgCtx.drawImage(img,0,0);
+        const dataURL=imgCanvas.toDataURL();
+        
+        //paintCanvasImg.src=paintImageUrl;
         checkImagesLoaded();
     };
-    img.onerror = () => console.error("Failed to load image");
+    
 
     paintCanvasImg.onload = function() {
         paintCanvas.width = paintCanvasImg.width;
         paintCanvas.height = paintCanvasImg.height;
-        compositeCanvas.width = paintCanvasImg.width;
-        compositeCanvas.height = paintCanvasImg.height;
+        // compositeCanvas.width = paintCanvasImg.width;
+        // compositeCanvas.height = paintCanvasImg.height;
         paintCtx.drawImage(paintCanvasImg, 0, 0);
+        //updateDisplay();
         checkImagesLoaded();
     };
-    paintCanvasImg.onerror = () => console.error("Failed to load paint canvas");
 
-    
-    const nodeImageUrl = `/view?filename=${encodeURIComponent(node.widgets[0].value)}&type=input`;
-    img.src = nodeImageUrl;
-
-    
-    
-    const paintCanvasUrl = `/view?filename=${encodeURIComponent(node.widgets[1].value)}&type=input`;
-    paintCanvasImg.src = paintCanvasUrl;
 
  
     
@@ -102,6 +127,7 @@ function openOutputEditor(node) {
     let tempPolygon = null; // For showing drag preview
     let mode=null;
     let isDrawing=false;
+    let movedPolygon=null;
 
     
    
@@ -384,27 +410,43 @@ function openOutputEditor(node) {
     
     function onMouseUp(e) {
         if (isDragging && tempPolygon && mode === "dest") {
+            // isDragging = false;
+            
+            // // Extract the region from original position
+            // const region = extractPolygonFromCanvas(paintCanvas, selectedPolygon);
+            
+            // // Erase from original position
+            // erasePolygonFromCanvas(paintCanvas, selectedPolygon);
+            
+            // // Calculate the translation
+            // const oldBounds = getPolygonBounds(selectedPolygon);
+            // const newBounds = getPolygonBounds(tempPolygon);
+            // const dx = newBounds.x - oldBounds.x;
+            // const dy = newBounds.y - oldBounds.y;
+            
+            // // Paste to new position
+            // pasteRegionOnCanvas(paintCanvas, region, newBounds.x, newBounds.y);
+            
+            // // Update the selected polygon to new position
+            // selectedPolygon = tempPolygon;
+            // tempPolygon = null;
+            
+            // displayCanvas.style.cursor = "move";
+            // updateDisplay();
+
             isDragging = false;
-            
-            // Extract the region from original position
+
+            // Extract, erase, and paste as before...
             const region = extractPolygonFromCanvas(paintCanvas, selectedPolygon);
-            
-            // Erase from original position
             erasePolygonFromCanvas(paintCanvas, selectedPolygon);
-            
-            // Calculate the translation
-            const oldBounds = getPolygonBounds(selectedPolygon);
             const newBounds = getPolygonBounds(tempPolygon);
-            const dx = newBounds.x - oldBounds.x;
-            const dy = newBounds.y - oldBounds.y;
-            
-            // Paste to new position
             pasteRegionOnCanvas(paintCanvas, region, newBounds.x, newBounds.y);
-            
-            // Update the selected polygon to new position
-            selectedPolygon = tempPolygon;
+
+            // Store the moved polygon for save
+            movedPolygon = tempPolygon.map(p => ({ ...p }));
+            selectedPolygon = selectedPolygon.map(p => ({ ...p }));
             tempPolygon = null;
-            
+
             displayCanvas.style.cursor = "move";
             updateDisplay();
         }
@@ -494,77 +536,87 @@ function openOutputEditor(node) {
         selectDestBtn.disabled=true;
     };
 
+
+
     document.getElementById("save-output").addEventListener("click", async () => {
 
-        
-            if (!selectedPolygon) {
-                alert("No changes to save");
-                return;
+ 
+    
+        try {
+            const finalCanvas = document.createElement("canvas");
+            finalCanvas.width = paintCanvas.width;
+            finalCanvas.height = paintCanvas.height;
+            const finalCtx = finalCanvas.getContext("2d");
+    
+            // Fill with black
+            finalCtx.fillStyle = "black";
+            finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    
+            // Draw full paintCanvas into a copy
+            const originalCanvas = document.createElement("canvas");
+            originalCanvas.width = paintCanvas.width;
+            originalCanvas.height = paintCanvas.height;
+            const originalCtx = originalCanvas.getContext("2d");
+            originalCtx.drawImage(paintCanvas, 0, 0);
+    
+            // Mask out the original (selected) region
+            originalCtx.save();
+            originalCtx.beginPath();
+            originalCtx.moveTo(selectedPolygon[0].x, selectedPolygon[0].y);
+            for (let i = 1; i < selectedPolygon.length; i++) {
+                originalCtx.lineTo(selectedPolygon[i].x, selectedPolygon[i].y);
             }
-
-            try {
-
-                // Create a copy of the paint canvas
-                const finalCanvas = document.createElement("canvas");
-                finalCanvas.width = paintCanvas.width;
-                finalCanvas.height = paintCanvas.height;
-                const finalCtx = finalCanvas.getContext("2d");
-                
-                // Draw the current paint canvas
-                finalCtx.drawImage(paintCanvas, 0, 0);
-                
-                // Fill the original position with black
-                finalCtx.save();
-                finalCtx.beginPath();
-                finalCtx.moveTo(selectedPolygon[0].x, selectedPolygon[0].y);
-                for (let i = 1; i < selectedPolygon.length; i++) {
-                    finalCtx.lineTo(selectedPolygon[i].x, selectedPolygon[i].y);
+            originalCtx.closePath();
+            originalCtx.clip();
+            originalCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+            originalCtx.restore();
+    
+            // Paste everything except original region onto final canvas
+            finalCtx.drawImage(originalCanvas, 0, 0);
+    
+            // Extract moved region from current paintCanvas
+            const bounds = getPolygonBounds(movedPolygon);
+            const movedClip = document.createElement("canvas");
+            movedClip.width = bounds.width;
+            movedClip.height = bounds.height;
+            const movedCtx = movedClip.getContext("2d");
+    
+            movedCtx.save();
+            movedCtx.translate(-bounds.x, -bounds.y);
+            movedCtx.beginPath();
+            movedCtx.moveTo(movedPolygon[0].x, movedPolygon[0].y);
+            for (let i = 1; i < movedPolygon.length; i++) {
+                movedCtx.lineTo(movedPolygon[i].x, movedPolygon[i].y);
+            }
+            movedCtx.closePath();
+            movedCtx.clip();
+            movedCtx.drawImage(paintCanvas, 0, 0);
+            movedCtx.restore();
+    
+            // Draw moved shape into the final canvas
+            finalCtx.drawImage(movedClip, bounds.x, bounds.y);
+    
+            // Save result
+            finalCanvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append("image", blob, node.widgets[1].value);
+    
+                const response = await fetch("/upload/image", {
+                    method: "POST",
+                    body: formData
+                });
+    
+                if (response.ok) {
+                    alert("Saved successfully!");
+                    paintCanvasImg.src = `${paintCanvasUrl}&t=${Date.now()}`;
+                } else {
+                    alert("Failed to save image.");
                 }
-                finalCtx.closePath();
-                finalCtx.clip();
-                finalCtx.fillStyle = "black";
-                finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-                finalCtx.restore();
-
-                
-                
-                // Convert canvas to blob
-                finalCanvas.toBlob(async (blob) => {
-                    try {
-                        // Create FormData and append the image
-                        const formData = new FormData();
-                        const filename = originalNode.widgets[1].value;
-                        formData.append("image", blob, filename);
-                        
-                        // Send to server
-                        const response = await fetch("/upload/image", {
-                            method: "POST",
-                            body: formData
-                        });
-                        
-                        if (response.ok) {
-                            alert("Image saved successfully");
-                            // Refresh the paint canvas to show changes
-                            paintCanvasImg.src = `${paintCanvasUrl}&t=${Date.now()}`;
-                        } else {
-                            throw new Error("Failed to save image");
-                        }
-                    } catch (error) {
-                        console.error("Save error:", error);
-                        alert("Failed to save image");
-                    }
-                }, "image/png");
-            } catch (error) {
-                console.error("Save error:", error);
-                alert("Failed to save image");
-            }
-        
-
-        updateDisplay();
-  
-
-
-
+            }, "image/png");
+        } catch (err) {
+            console.error(err);
+            alert("Save error occurred.");
+        }
     });
 
 

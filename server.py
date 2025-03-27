@@ -17,6 +17,7 @@ import ipaddress
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
+import base64
 
 import aiohttp
 from aiohttp import web
@@ -167,6 +168,9 @@ class PromptServer():
         logging.info(f"[Prompt Server] web root: {self.web_root}")
         routes = web.RouteTableDef()
         self.routes = routes
+        
+
+   
         self.last_node_id = None
         self.client_id = None
 
@@ -340,6 +344,8 @@ class PromptServer():
 
         #     # ✅ Return the filename so the frontend can update the node
         #     return web.json_response({"filename": new_filename})
+        
+
         @routes.post("/upload/image")
         async def upload_image(request):
             """Handles image uploads from the frontend and ensures a correct filename is returned."""
@@ -353,23 +359,53 @@ class PromptServer():
             # Get the upload directory
             upload_dir = folder_paths.get_input_directory()
 
-            # Generate a unique filename
+            #  Generate a guaranteed unique filename using uuid4
             base_name, ext = os.path.splitext(image.filename)
-            new_filename = f"painting_{int(time.time())}{ext}"
+            new_filename = image.filename
             save_path = os.path.join(upload_dir, new_filename)
+
+        
 
             # Save the uploaded image
             with open(save_path, "wb") as f:
                 f.write(image.file.read())
 
-            # ✅ Notify the frontend via WebSockets to update the Painter Node
+            # image_data = await image.read()
+            # with open(save_path, "wb") as f:
+            #     f.write(image_data)
+
+
+            # Notify the frontend via WebSockets to update the Painter Node
             if PromptServer.instance:
                 await PromptServer.instance.send("image_updated", {"filename": new_filename})
 
-            # ✅ Return the filename so the frontend can update the node
+            # Return the filename so the frontend can update the node
             return web.json_response({"filename": new_filename})
+        
+        @routes.post("/paint_data")
+        async def receive_paint_data(request):
+            try:
+                data = await request.json()
+                node_id = data.get("node_id")
+                paint_data = data.get("paint_data")
+
+                # This just logs the reception; you can store it in memory if needed
+                logging.info(f"Received paint data for node {node_id} (length: {len(paint_data)} characters)")
+
+                return web.json_response({"status": "received"})
+            except Exception as e:
+                logging.error(f"Error receiving paint data: {e}")
+                return web.json_response({"status": "error", "message": str(e)}, status=500)
+            
 
 
+        
+        
+
+
+
+        
+       
 
 
 
@@ -760,6 +796,10 @@ class PromptServer():
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
 
+        self.app.add_routes([
+            web.static('/output/edit_output', os.path.join(folder_paths.get_output_directory(), 'edit_output'))
+        ])
+
         # Add routes from web extensions.
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
@@ -897,3 +937,5 @@ class PromptServer():
                 logging.warning(traceback.format_exc())
 
         return json_data
+    
+
