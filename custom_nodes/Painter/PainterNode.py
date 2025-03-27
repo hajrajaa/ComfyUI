@@ -10,7 +10,14 @@ from io import BytesIO
 import re
 import os 
 import time
+import base64
 
+def tensor_to_base64(tensor):
+    np_img = (tensor.squeeze(0).permute(1, 2, 0).clamp(0, 1).numpy() * 255).astype(np.uint8)
+    img = Image.fromarray(np_img)
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 class PaintNode:
     @classmethod
@@ -23,8 +30,11 @@ class PaintNode:
 
     CATEGORY = "custom"
 
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = ("IMAGE","IMAGE")
+    RETURN_NAMES=("image","paint_canvas")
     FUNCTION = "load_image"
+
+    OUTPUT_NODE=True
 
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
@@ -68,7 +78,51 @@ class PaintNode:
             output_image = output_images[0]
             output_mask = output_masks[0]
 
-        return (output_image, output_mask)
+         
+        base_name, _ = os.path.splitext(os.path.basename(image_path))
+        painted_image_path = os.path.join(folder_paths.get_input_directory(), f"{base_name}.png")
+        canvas_base = base_name.replace("image", "canvas")
+        paint_canvas_path = os.path.join(folder_paths.get_input_directory(), f"{canvas_base}.png")
+
+        print(painted_image_path)
+        print(paint_canvas_path)
+
+        # # Load merged image if exists
+        # if os.path.exists(painted_image_path):
+        #     merged_img = Image.open(painted_image_path).convert("RGB")
+        #     merged_tensor = torch.from_numpy(np.array(merged_img).astype(np.float32) / 255.0).unsqueeze(0)
+        # else:
+        #     merged_tensor = output_image  # fallback to original image
+        try:
+            merged_img = Image.open(painted_image_path).convert("RGB")
+            merged_tensor = torch.from_numpy(np.array(merged_img).astype(np.float32) / 255.0).unsqueeze(0)
+            print("Successfully loaded painted image.")
+        except FileNotFoundError:
+            print("Painted image not found:", painted_image_path)
+            merged_tensor = output_image  # fallback to original image
+
+
+        # # Load paint canvas if exists
+        # if os.path.exists(paint_canvas_path):
+        #     paint_img = Image.open(paint_canvas_path).convert("RGB")
+        #     paint_tensor = torch.from_numpy(np.array(paint_img).astype(np.float32) / 255.0).unsqueeze(0)
+        # else:
+        #     paint_tensor = torch.zeros_like(output_image)
+
+        try:
+            paint_img = Image.open(paint_canvas_path).convert("RGB")
+            paint_tensor = torch.from_numpy(np.array(paint_img).astype(np.float32) / 255.0).unsqueeze(0)
+            print("Successfully loaded paint canvas.")
+        except FileNotFoundError:
+            print("Paint canvas not found:", paint_canvas_path)
+            paint_tensor = torch.zeros_like(output_image)
+
+
+
+
+
+        return (merged_tensor, paint_tensor)
+
 
     @classmethod
     def IS_CHANGED(s, image):
@@ -84,4 +138,3 @@ class PaintNode:
             return "Invalid image file: {}".format(image)
 
         return True
-
