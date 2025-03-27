@@ -397,6 +397,34 @@ class PromptServer():
                 logging.error(f"Error receiving paint data: {e}")
                 return web.json_response({"status": "error", "message": str(e)}, status=500)
             
+        @routes.post("/upload/output_image")
+        async def upload_output_image(request):
+            post = await request.post()
+
+            image = post.get("image")
+            if image is None:
+                return web.json_response({"error": "No image file provided"}, status=400)
+
+            # Default to output folder
+            subfolder = post.get("subfolder", "edit_output")
+            output_dir = folder_paths.get_output_directory()
+            safe_subfolder = os.path.normpath(subfolder)
+            full_output_path = os.path.join(output_dir, safe_subfolder)
+            os.makedirs(full_output_path, exist_ok=True)
+
+            # Save using original filename or override
+            filename = image.filename
+            save_path = os.path.join(full_output_path, filename)
+
+            with open(save_path, "wb") as f:
+                f.write(image.file.read())
+
+            return web.json_response({
+                "filename": filename,
+                "subfolder": subfolder,
+                "type": "output"
+            })
+
 
 
         

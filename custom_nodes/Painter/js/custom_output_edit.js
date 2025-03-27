@@ -253,14 +253,14 @@ function openOutputEditor(node) {
             offsetX, offsetY, drawWidth, drawHeight
         );
 
-        // Draw the paint layer (semi-transparent)
-        displayCtx.globalAlpha = 0.7;
-        displayCtx.drawImage(
-            paintCanvas,
-            0, 0, paintCanvas.width, paintCanvas.height,
-            offsetX, offsetY, drawWidth, drawHeight
-        );
-        displayCtx.globalAlpha = 1.0;
+        // // Draw the paint layer (semi-transparent)
+        // displayCtx.globalAlpha = 0.7;
+        // displayCtx.drawImage(
+        //     paintCanvas,
+        //     0, 0, paintCanvas.width, paintCanvas.height,
+        //     offsetX, offsetY, drawWidth, drawHeight
+        // );
+        // displayCtx.globalAlpha = 1.0;
 
         if (mode === "source" && lassoPath.length > 0 && isDrawing) {
 
@@ -599,7 +599,7 @@ function openOutputEditor(node) {
             // Save result
             finalCanvas.toBlob(async (blob) => {
                 const formData = new FormData();
-                formData.append("image", blob, node.widgets[1].value);
+                formData.append("image", blob, "paint_canvas.png");
     
                 const response = await fetch("/upload/image", {
                     method: "POST",
@@ -608,7 +608,7 @@ function openOutputEditor(node) {
     
                 if (response.ok) {
                     alert("Saved successfully!");
-                    paintCanvasImg.src = `${paintCanvasUrl}&t=${Date.now()}`;
+                    paintCanvasImg.src = `${window.location.origin}/output/edit_output/paint_canvas.png?t=${Date.now()}`;
                 } else {
                     alert("Failed to save image.");
                 }
